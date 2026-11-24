@@ -12,7 +12,8 @@
   "addressKz": "Қандыағаш қаласы, Жастық көшесі, 5N",
   "hours": "",
   "hoursKz": "",
-  "currency": "₸"
+  "currency": "₸",
+  "delivery": true
  },
  "categories": [
   {

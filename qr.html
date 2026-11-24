@@ -74,7 +74,10 @@
     urlIn.value = new URL("./", location.href).href;
 
     function draw() {
-      const text = urlIn.value.trim() || location.href;
+      const base = urlIn.value.trim() || location.href;
+      const t = tableIn.value.trim();
+      // номер стола попадает в ссылку — на сайте он подставится в заказ сам
+      const text = t ? base + (base.includes("?") ? "&" : "?") + "table=" + encodeURIComponent(t) : base;
       const qr = qrcode(0, "H"); // высокий уровень коррекции — логотип в центре не мешает
       qr.addData(text);
       qr.make();
@@ -90,8 +93,7 @@
         ctx.beginPath(); ctx.arc(size / 2, size / 2, l / 2 + 8, 0, Math.PI * 2); ctx.fill();
         ctx.drawImage(logo, x, x, l, l);
       }
-      const t = tableIn.value.trim();
-      document.getElementById("tableLabel").textContent = t ? "Стол № " + t : "";
+      document.getElementById("tableLabel").textContent = t ? "Стол № " + t + " · " + t + "-үстел" : "";
     }
 
     logo.onload = draw;
@@ -101,7 +103,7 @@
 
     document.getElementById("dl").addEventListener("click", () => {
       const a = document.createElement("a");
-      a.download = "aisha-menu-qr.png";
+      a.download = "aisha-menu-qr" + (tableIn.value.trim() ? "-stol-" + tableIn.value.trim() : "") + ".png";
       a.href = canvas.toDataURL("image/png");
       a.click();
     });

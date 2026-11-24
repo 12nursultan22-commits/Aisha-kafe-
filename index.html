@@ -51,6 +51,26 @@
         <button class="icon-btn" data-close>✕</button>
       </div>
       <ul class="sheet__list" id="cartList"></ul>
+
+      <div class="mode" role="radiogroup" id="modeGroup">
+        <button class="mode__btn" role="radio" data-mode="hall"><span>🍽️</span><b id="mHall">В зале</b></button>
+        <button class="mode__btn" role="radio" data-mode="takeaway"><span>🛍️</span><b id="mTake">С собой</b></button>
+        <button class="mode__btn" role="radio" data-mode="delivery" id="mDelivBtn"><span>🚗</span><b id="mDeliv">Доставка</b></button>
+      </div>
+      <label class="ofield" id="tableField">
+        <span id="tableLbl">Номер стола</span>
+        <input id="tableNo" inputmode="numeric" autocomplete="off" maxlength="6">
+      </label>
+      <label class="ofield" id="addrField" hidden>
+        <span id="addrLbl">Адрес доставки</span>
+        <input id="addr" autocomplete="street-address" maxlength="200">
+      </label>
+      <p class="onote" id="takeNote" hidden></p>
+      <p class="onote onote--gold" id="delivNote" hidden></p>
+      <label class="ofield">
+        <span id="commentLbl">Комментарий (необязательно)</span>
+        <input id="comment" autocomplete="off" maxlength="300">
+      </label>
       <div class="sheet__total">
         <span id="totalLabel">Итого</span><strong id="cartTotal"></strong>
       </div>

@@ -215,7 +215,11 @@
   ];
   function renderCafe() {
     const c = S.data.cafe || (S.data.cafe = {});
-    $("#viewCafe").innerHTML = `<div class="card form">` + CAFE_FIELDS.map(([k, label]) => `
+    $("#viewCafe").innerHTML = `<div class="card form">
+      <div class="inline-toggle">
+        <span>Принимаем заказы на доставку<br><small class="muted">цену доставки гость уточняет в WhatsApp</small></span>
+        <label class="switch"><input type="checkbox" data-cafe-bool="delivery" ${c.delivery ? "checked" : ""} aria-label="Доставка"><span></span></label>
+      </div>` + CAFE_FIELDS.map(([k, label]) => `
       <label class="field"><span>${label}</span><input data-cafe="${k}" value="${esc(c[k])}" ${k === "whatsapp" ? 'inputmode="numeric"' : ""}></label>`).join("") +
       `<p class="muted small">Пустые поля на сайте не показываются.</p></div>`;
   }
@@ -428,6 +432,7 @@
   document.addEventListener("change", async (e) => {
     const el = e.target;
     if (el.dataset.cat !== undefined) return renderMenu();
+    if (el.dataset.cafeBool) { S.data.cafe[el.dataset.cafeBool] = el.checked; return dirty(); }
     if (el.dataset.stop) {
       const [ci, ii] = el.dataset.stop.split(":").map(Number);
       const it = cats()[ci].items[ii];

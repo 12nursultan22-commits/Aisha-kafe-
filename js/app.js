@@ -11,6 +11,16 @@
       call: "Позвонить", prices: "Цены указаны в тенге",
       add: "Добавить", remove: "Убрать", off: "Нет в наличии",
       tags: { hit: "Хит", new: "Новинка", spicy: "Острое", veg: "Вег" },
+      hall: "В зале", takeaway: "С собой", delivery: "Доставка",
+      table: "Номер стола", tablePh: "например, 5",
+      addr: "Адрес доставки", addrPh: "улица, дом, квартира",
+      comment: "Комментарий (необязательно)",
+      takeNote: (a) => `Заберёте заказ в кафе${a ? ": " + a : ""}.`,
+      delivNote: "Стоимость доставки уточним в WhatsApp — она не входит в итог.",
+      totalNoDeliv: "Итого без доставки",
+      needTable: "Укажите номер стола", needAddr: "Укажите адрес доставки",
+      waHall: (n) => `🍽️ В зале, стол № ${n}`, waTake: "🛍️ С собой", waDeliv: (a) => `🚗 Доставка: ${a}`,
+      waDelivPrice: "Подскажите, пожалуйста, стоимость доставки.", waComment: "Комментарий",
       waHello: (n) => `Здравствуйте! Заказ в кафе ${n}:`, loadErr: "Не удалось загрузить меню. Обновите страницу."
     },
     kz: {
@@ -21,6 +31,16 @@
       call: "Қоңырау шалу", prices: "Бағалар теңгемен көрсетілген",
       add: "Қосу", remove: "Алып тастау", off: "Қазір жоқ",
       tags: { hit: "Хит", new: "Жаңа", spicy: "Ащы", veg: "Вег" },
+      hall: "Залда", takeaway: "Өзіммен", delivery: "Жеткізу",
+      table: "Үстел нөмірі", tablePh: "мысалы, 5",
+      addr: "Жеткізу мекенжайы", addrPh: "көше, үй, пәтер",
+      comment: "Пікір (міндетті емес)",
+      takeNote: (a) => `Тапсырысты кафеден алып кетесіз${a ? ": " + a : ""}.`,
+      delivNote: "Жеткізу құнын WhatsApp арқылы нақтылаймыз — ол жалпы сомаға кірмейді.",
+      totalNoDeliv: "Жеткізусіз барлығы",
+      needTable: "Үстел нөмірін көрсетіңіз", needAddr: "Жеткізу мекенжайын көрсетіңіз",
+      waHall: (n) => `🍽️ Залда, ${n}-үстел`, waTake: "🛍️ Өзіммен алып кетемін", waDeliv: (a) => `🚗 Жеткізу: ${a}`,
+      waDelivPrice: "Жеткізу құнын айтып жіберіңізші.", waComment: "Пікір",
       waHello: (n) => `Сәлеметсіз бе! ${n} кафесіне тапсырыс:`, loadErr: "Мәзір жүктелмеді. Бетті жаңартыңыз."
     }
   };
@@ -34,6 +54,12 @@
 
   let lang = store.get("aisha-lang") === "kz" ? "kz" : "ru";
   let DATA, CAFE, cart = {};
+  // способ получения заказа: в зале / с собой / доставка
+  let order = { mode: "hall", table: "", addr: "", comment: "" };
+  try { Object.assign(order, JSON.parse(store.get("aisha-order")) || {}); } catch (e) {}
+  const urlTable = new URLSearchParams(location.search).get("table");
+  if (urlTable) { order.mode = "hall"; order.table = urlTable.slice(0, 6); }
+  const saveOrder = () => store.set("aisha-order", JSON.stringify({ mode: order.mode, table: order.table, addr: order.addr }));
   const items = {}, prods = {};
 
   const t = (k) => T[lang][k];
@@ -62,6 +88,7 @@
     }));
     try { cart = JSON.parse(store.get("aisha-cart-v3")) || {}; } catch (e) { cart = {}; }
     Object.keys(cart).forEach((k) => { if (!prods[k] || prods[k].it.off) delete cart[k]; });
+    if (order.mode === "delivery" && !CAFE.delivery) order.mode = "hall";
     bind();
     render();
   }).catch(() => {
@@ -85,6 +112,11 @@
     $("#sheetTitle").textContent = t("order");
     $("#totalLabel").textContent = t("total");
     $("#cartClear").textContent = t("clear");
+    $("#mHall").textContent = t("hall"); $("#mTake").textContent = t("takeaway"); $("#mDeliv").textContent = t("delivery");
+    $("#tableLbl").textContent = t("table"); $("#tableNo").placeholder = t("tablePh");
+    $("#addrLbl").textContent = t("addr"); $("#addr").placeholder = t("addrPh");
+    $("#commentLbl").textContent = t("comment");
+    $("#tableNo").value = order.table; $("#addr").value = order.addr; $("#comment").value = order.comment;
     document.querySelectorAll("[data-close]").forEach((b) => b.setAttribute("aria-label", t("close")));
 
     const links = [];
@@ -171,22 +203,57 @@
     $("#cartCount").textContent = count;
     $("#cartSum").textContent = fmt(total);
     $("#cartTotal").textContent = fmt(total);
+    lastEntries = entries; lastTotal = total;
     $("#cartList").innerHTML = entries.map(([k, p, n]) => `
       <li>
         <span class="name">${esc(prodName(p))}</span>
         <div class="qty">${qtyBtns(k, n)}</div>
         <span class="sum">${fmt(prodPrice(p) * n)}</span>
       </li>`).join("");
-    const wa = $("#cartWa");
-    wa.hidden = !CAFE.whatsapp;
-    if (CAFE.whatsapp) {
-      const text = t("waHello")(CAFE.name) + "\n" +
-        entries.map(([, p, n]) => `• ${prodName(p)} × ${n} = ${fmt(prodPrice(p) * n)}`).join("\n") +
-        `\n${t("total")}: ${fmt(total)}`;
-      wa.href = `https://wa.me/${CAFE.whatsapp}?text=${encodeURIComponent(text)}`;
-    }
+    $("#cartWa").hidden = !CAFE.whatsapp;
     $("#sheetHint").textContent = CAFE.whatsapp ? t("hintWa") : t("hint");
+    renderOrder();
     if (count === 0) closeSheet();
+  }
+
+  let lastEntries = [], lastTotal = 0;
+  function renderOrder() {
+    const m = order.mode;
+    $("#mDelivBtn").hidden = !CAFE.delivery;
+    document.querySelectorAll(".mode__btn").forEach((b) => b.setAttribute("aria-checked", b.dataset.mode === m));
+    $("#tableField").hidden = m !== "hall";
+    $("#addrField").hidden = m !== "delivery";
+    $("#takeNote").hidden = m !== "takeaway";
+    $("#takeNote").textContent = t("takeNote")(L(CAFE.address, CAFE.addressKz));
+    $("#delivNote").hidden = m !== "delivery";
+    $("#delivNote").textContent = t("delivNote");
+    $("#totalLabel").textContent = m === "delivery" ? t("totalNoDeliv") : t("total");
+    updateWa();
+  }
+
+  function updateWa() {
+    if (!CAFE.whatsapp) return;
+    const m = order.mode, lines = [t("waHello")(CAFE.name)];
+    if (m === "hall") lines.push(t("waHall")(order.table.trim() || "—"));
+    else if (m === "takeaway") lines.push(t("waTake"));
+    else lines.push(t("waDeliv")(order.addr.trim() || "—"));
+    lines.push("");
+    lastEntries.forEach(([, p, n]) => lines.push(`• ${prodName(p)} × ${n} = ${fmt(prodPrice(p) * n)}`));
+    lines.push("", `${m === "delivery" ? t("totalNoDeliv") : t("total")}: ${fmt(lastTotal)}`);
+    if (m === "delivery") lines.push(t("waDelivPrice"));
+    if (order.comment.trim()) lines.push(`${t("waComment")}: ${order.comment.trim()}`);
+    $("#cartWa").href = `https://wa.me/${CAFE.whatsapp}?text=${encodeURIComponent(lines.join("\n"))}`;
+  }
+
+  // перед отправкой в WhatsApp проверяем номер стола / адрес
+  function checkOrder() {
+    const need = order.mode === "hall" && !order.table.trim() ? ["#tableField", "#tableNo", "needTable"]
+      : order.mode === "delivery" && !order.addr.trim() ? ["#addrField", "#addr", "needAddr"] : null;
+    if (!need) return true;
+    $(need[0]).classList.add("is-invalid");
+    $(need[0]).querySelector("span").textContent = t(need[2]);
+    $(need[1]).focus();
+    return false;
   }
 
   function change(key, d) {
@@ -254,5 +321,19 @@
       window.scrollTo({ top: sec.getBoundingClientRect().top + window.scrollY - $("#tabs").offsetHeight - 4, behavior: "smooth" });
     });
     $("#search").addEventListener("input", applySearch);
+
+    $("#modeGroup").addEventListener("click", (e) => {
+      const b = e.target.closest(".mode__btn"); if (!b) return;
+      order.mode = b.dataset.mode; saveOrder(); renderOrder();
+    });
+    [["#tableNo", "table", "#tableField", "table"], ["#addr", "addr", "#addrField", "addr"], ["#comment", "comment"]].forEach(([sel, key, field, lbl]) => {
+      $(sel).addEventListener("input", (e) => {
+        order[key] = e.target.value; saveOrder(); updateWa();
+        if (field && $(field).classList.contains("is-invalid")) {
+          $(field).classList.remove("is-invalid"); $(field).querySelector("span").textContent = t(lbl);
+        }
+      });
+    });
+    $("#cartWa").addEventListener("click", (e) => { if (!checkOrder()) e.preventDefault(); });
   }
 })();
