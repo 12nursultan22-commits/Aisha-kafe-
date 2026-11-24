@@ -166,6 +166,15 @@
             <label class="field"><span>Название раздела (рус)</span><input data-cat="${ci}" data-k="title" value="${esc(c.title)}"></label>
             <label class="field"><span>Бөлім атауы (қаз)</span><input data-cat="${ci}" data-k="kz" value="${esc(c.kz)}"></label>
           </div>
+          <div class="field"><span>Фото на заголовке раздела</span>
+            <div class="photo">
+              ${c.img ? `<img class="photo--wide" src="${esc(imgSrc(c.img))}" alt="">` : ""}
+              <div class="photo__btns">
+                <label class="btn btn--ghost btn--sm">${c.img ? "Заменить фото" : "Загрузить фото"}<input type="file" accept="image/*" data-cat-photo="${ci}" hidden></label>
+                ${c.img ? `<button class="btn btn--danger btn--sm" data-act="del-cat-photo" data-ci="${ci}">Убрать фото</button>` : ""}
+              </div>
+            </div>
+          </div>
           <ul class="ilist">
             ${c.items.map((it, ii) => `
             <li class="irow${it.off ? " is-off" : ""}">
@@ -383,6 +392,11 @@
         list.push(c); S.open.add(c.id); dirty(); renderMenu();
         return document.querySelector(`[data-cat="${list.length - 1}"][data-k="title"]`).select();
       }
+      case "del-cat-photo": {
+        const c = list[ci];
+        delete S.pending[c.img]; delete S.previews[c.img]; delete c.img;
+        dirty(); return renderMenu();
+      }
       case "del-cat": {
         if (!confirmTwice(b, list[ci].items.length ? `Удалить вместе с ${list[ci].items.length} блюдами?` : "Точно удалить?")) return;
         list.splice(ci, 1); dirty(); renderMenu(); renderStop(); return toast("Раздел удалён");
@@ -432,6 +446,16 @@
   document.addEventListener("change", async (e) => {
     const el = e.target;
     if (el.dataset.cat !== undefined) return renderMenu();
+    if (el.dataset.catPhoto !== undefined && el.files && el.files[0]) {
+      const c = cats()[+el.dataset.catPhoto];
+      try {
+        const { dataURL, b64 } = await loadPhoto(el.files[0]);
+        if (c.img && S.pending[c.img]) { delete S.pending[c.img]; delete S.previews[c.img]; }
+        const path = `img/sections/${c.id}-${Date.now().toString(36)}.jpg`;
+        S.pending[path] = b64; S.previews[path] = dataURL; c.img = path;
+      } catch (err) { return toast("Не удалось прочитать фото. Попробуйте JPG или PNG.", true); }
+      dirty(); return renderMenu();
+    }
     if (el.dataset.cafeBool) { S.data.cafe[el.dataset.cafeBool] = el.checked; return dirty(); }
     if (el.dataset.stop) {
       const [ci, ii] = el.dataset.stop.split(":").map(Number);
