@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aisha — QR-код меню</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { padding: 24px 16px 48px; }
+    .wrap { max-width: 520px; margin: 0 auto; }
+    h1 { font-family: var(--serif); color: var(--gold); text-align: center; }
+    label { display: block; color: var(--muted); font-size: 13px; margin: 14px 0 6px; }
+    input[type=url], input[type=text] {
+      width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+      color: var(--text); font: inherit; font-size: 16px; padding: 12px;
+    }
+    .card {
+      margin: 24px auto; width: 100%; max-width: 360px; aspect-ratio: 3 / 4.2;
+      background: #0b0b0b; border: 2px solid var(--gold-2); border-radius: 20px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      padding: 20px; text-align: center;
+    }
+    .card img.logo { width: 90px; height: 90px; border-radius: 50%; }
+    .card .t { font-family: var(--serif); color: var(--gold); font-size: 24px; letter-spacing: .1em; text-transform: uppercase; }
+    .card canvas { width: 62%; height: auto; background: #fff; border-radius: 12px; padding: 10px; }
+    .card .s { color: var(--text); font-size: 13px; }
+    .card .table { color: var(--gold); font-weight: 600; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media print {
+      @page { margin: 10mm; }
+      body { background: #fff; padding: 0; }
+      .no-print { display: none !important; }
+      .card { margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; width: 90mm; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="no-print">QR-код для столов</h1>
+    <div class="no-print">
+      <label for="url">Адрес сайта с меню</label>
+      <input id="url" type="url">
+      <label for="tableNo">Номер стола (необязательно)</label>
+      <input id="tableNo" type="text" placeholder="например, 5">
+    </div>
+
+    <div class="card" id="card">
+      <img class="logo" src="img/logo.png" alt="">
+      <div class="t">Меню</div>
+      <canvas id="qr" width="600" height="600"></canvas>
+      <div class="s">Наведите камеру телефона на QR-код</div>
+      <div class="table" id="tableLabel"></div>
+    </div>
+
+    <div class="actions no-print">
+      <button class="btn btn--ghost" id="dl">Скачать PNG</button>
+      <button class="btn btn--gold" onclick="window.print()">Печать</button>
+    </div>
+  </div>
+
+  <script src="js/qrcode.js"></script>
+  <script>
+    const urlIn = document.getElementById("url");
+    const tableIn = document.getElementById("tableNo");
+    const canvas = document.getElementById("qr");
+    const ctx = canvas.getContext("2d");
+    const logo = new Image();
+    logo.src = "img/logo.png";
+
+    // По умолчанию — адрес главной страницы рядом с этим файлом
+    urlIn.value = new URL("./", location.href).href;
+
+    function draw() {
+      const text = urlIn.value.trim() || location.href;
+      const qr = qrcode(0, "H"); // высокий уровень коррекции — логотип в центре не мешает
+      qr.addData(text);
+      qr.make();
+      const n = qr.getModuleCount(), quiet = 2, size = canvas.width;
+      const cell = size / (n + quiet * 2);
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#0b0b0b";
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+        if (qr.isDark(r, c)) ctx.fillRect(Math.floor((c + quiet) * cell), Math.floor((r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
+      if (logo.complete && logo.naturalWidth) {
+        const l = size * 0.22, x = (size - l) / 2;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(size / 2, size / 2, l / 2 + 8, 0, Math.PI * 2); ctx.fill();
+        ctx.drawImage(logo, x, x, l, l);
+      }
+      const t = tableIn.value.trim();
+      document.getElementById("tableLabel").textContent = t ? "Стол № " + t : "";
+    }
+
+    logo.onload = draw;
+    urlIn.addEventListener("input", draw);
+    tableIn.addEventListener("input", draw);
+    draw();
+
+    document.getElementById("dl").addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.download = "aisha-menu-qr.png";
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    });
+  </script>
+</body>
+</html>
