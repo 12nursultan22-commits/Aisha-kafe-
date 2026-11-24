@@ -13,14 +13,7 @@
   "hours": "",
   "hoursKz": "",
   "currency": "₸",
-  "delivery": true,
-  "hero": [
-   "img/bg/shashlik.jpg",
-   "img/bg/manty.jpg",
-   "img/bg/rolls.jpg",
-   "img/bg/bowl.jpg",
-   "img/bg/banquet.jpg"
-  ]
+  "delivery": true
  },
  "categories": [
   {
@@ -28,7 +21,6 @@
    "title": "Первые блюда",
    "kz": "Бірінші тағамдар",
    "icon": "🍲",
-   "img": "img/bg/soups.jpg",
    "items": [
     {
      "id": "d01",
@@ -118,7 +110,6 @@
    "title": "Вторые блюда",
    "kz": "Екінші тағамдар",
    "icon": "🍖",
-   "img": "img/bg/manty.jpg",
    "items": [
     {
      "id": "d0e",
@@ -175,7 +166,6 @@
    "title": "Лагман",
    "kz": "Лағман",
    "icon": "🍜",
-   "img": "img/bg/lagman.jpg",
    "items": [
     {
      "id": "d0m",
@@ -337,7 +327,6 @@
    "title": "Стейки",
    "kz": "Стейк",
    "icon": "🥩",
-   "img": "img/bg/steak.jpg",
    "items": [
     {
      "id": "d19",
@@ -402,7 +391,6 @@
    "title": "Салаты",
    "kz": "Салаттар",
    "icon": "🥗",
-   "img": "img/bg/salads.jpg",
    "items": [
     {
      "id": "d1h",
@@ -510,7 +498,6 @@
    "title": "Новинки",
    "kz": "Жаңа дәм",
    "icon": "✨",
-   "img": "img/bg/bowl.jpg",
    "items": [
     {
      "id": "d1w",
@@ -555,7 +542,6 @@
    "title": "Шашлык",
    "kz": "Кәуап",
    "icon": "🔥",
-   "img": "img/bg/shashlik.jpg",
    "items": [
     {
      "id": "d20",
@@ -637,7 +623,6 @@
    "title": "Пицца и выпечка",
    "kz": "Пицца және тоқаштар",
    "icon": "🍕",
-   "img": "img/bg/pizza.jpg",
    "items": [
     {
      "id": "d2a",
@@ -870,7 +855,6 @@
    "title": "Холодные роллы",
    "kz": "Салқын роллдар",
    "icon": "🍣",
-   "img": "img/bg/rolls.jpg",
    "items": [
     {
      "id": "d34",
@@ -1008,7 +992,6 @@
    "title": "Запечённые роллы",
    "kz": "Пісірілген роллдар",
    "icon": "🍱",
-   "img": "img/bg/rolls-baked.jpg",
    "items": [
     {
      "id": "d3j",
@@ -1087,7 +1070,6 @@
    "title": "Суши-сеты",
    "kz": "Суши сеттер",
    "icon": "🥢",
-   "img": "img/bg/sushi-sets.jpg",
    "items": [
     {
      "id": "d3r",
@@ -1153,7 +1135,6 @@
    "title": "Сеты",
    "kz": "Сеттер",
    "icon": "🎁",
-   "img": "img/bg/combo.jpg",
    "items": [
     {
      "id": "d3x",
@@ -1268,7 +1249,6 @@
    "title": "Десерты",
    "kz": "Десерт",
    "icon": "🍰",
-   "img": "img/bg/desserts.jpg",
    "items": [
     {
      "id": "d4a",
@@ -1348,7 +1328,6 @@
    "title": "Чай",
    "kz": "Шәй",
    "icon": "🫖",
-   "img": "img/bg/tea.jpg",
    "items": [
     {
      "id": "d4k",
@@ -1657,7 +1636,6 @@
    "title": "Банкетные блюда",
    "kz": "Банкетке арналған тағамдар",
    "icon": "👑",
-   "img": "img/bg/banquet.jpg",
    "items": [
     {
      "id": "d55",
@@ -1744,7 +1722,6 @@
    "title": "Банкетные сеты",
    "kz": "Банкеттік сеттер",
    "icon": "🎉",
-   "img": "img/bg/banquet-sets.jpg",
    "items": [
     {
      "id": "d5i",

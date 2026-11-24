@@ -79,25 +79,8 @@
     });
   }
 
-  // ---------- Фото в шапке: плавная смена ----------
-  function startHero() {
-    const pics = (CAFE.hero || []).filter(Boolean);
-    const box = $("#heroBg");
-    if (!pics.length || !box) return;
-    box.innerHTML = pics.map((src, i) => `<div class="hero__slide${i === 0 ? " is-on" : ""}" style="background-image:url('${esc(src)}')"></div>`).join("");
-    document.querySelector(".hero").classList.add("has-photo");
-    if (pics.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const slides = box.children; let i = 0;
-    setInterval(() => {
-      slides[i].classList.remove("is-on");
-      i = (i + 1) % slides.length;
-      slides[i].classList.add("is-on");
-    }, 5000);
-  }
-
   load().then((d) => {
     DATA = d; CAFE = d.cafe || {};
-    startHero();
     DATA.categories.forEach((cat) => cat.items.forEach((it) => {
       items[it.id] = it;
       if (it.variants && it.variants.length) it.variants.forEach((v, vi) => (prods[it.id + "/" + vi] = { it, v }));
@@ -154,9 +137,7 @@
       const title = L(cat.title, cat.kz), sub = other(cat.title, cat.kz);
       return `
       <section class="section" id="${esc(cat.id)}">
-        ${cat.img
-          ? `<div class="banner" style="background-image:url('${esc(cat.img)}')"><h2 class="banner__title">${esc(title)}${sub && sub !== title ? `<small>${esc(sub)}</small>` : ""}</h2></div>`
-          : `<h2 class="section__title"><span>${esc(title)}${sub && sub !== title ? `<small>${esc(sub)}</small>` : ""}</span></h2>`}
+        <h2 class="section__title"><span>${esc(title)}${sub && sub !== title ? `<small>${esc(sub)}</small>` : ""}</span></h2>
         ${cat.items.map(itemHTML).join("")}
       </section>`;
     }).join("");

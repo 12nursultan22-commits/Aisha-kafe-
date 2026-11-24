@@ -157,4 +157,3 @@ body.admin { padding-bottom: 110px; }
 .vrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
 .ilist { grid-template-columns: minmax(0, 1fr); }
 .irow { min-width: 0; }
-.photo img.photo--wide { width: 160px; height: 90px; }
