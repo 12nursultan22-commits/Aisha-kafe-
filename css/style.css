@@ -210,7 +210,8 @@ button { font: inherit; color: inherit; }
 .sheet__total { display: flex; justify-content: space-between; font-size: 18px; margin: 8px 0; }
 .sheet__total strong { color: var(--gold); }
 .sheet__hint { color: var(--muted); font-size: 13px; }
-.sheet__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sheet__actions { display: flex; gap: 10px; }
+.sheet__actions > * { flex: 1; }
 
 @media (min-width: 600px) {
   .item__img { width: 110px; height: 110px; }
@@ -219,3 +220,13 @@ button { font: inherit; color: inherit; }
   html { scroll-behavior: auto; }
   .sheet__panel { animation: none; }
 }
+
+/* ---------- Казахские названия и размеры ---------- */
+.section__title > span { display: flex; flex-direction: column; }
+.section__title small { font-family: var(--sans); font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; font-weight: 500; margin-top: 2px; }
+.item__kz { color: var(--gold-2); font-size: 12px; margin: 2px 0 0; font-style: italic; }
+.vars { margin-top: auto; padding-top: 8px; display: grid; gap: 6px; }
+.var { display: flex; align-items: center; gap: 10px; }
+.var + .var { border-top: 1px dashed var(--line); padding-top: 6px; }
+.var__label { color: var(--muted); font-size: 13px; min-width: 44px; }
+.var .qty__btn { width: 30px; height: 30px; font-size: 18px; }
