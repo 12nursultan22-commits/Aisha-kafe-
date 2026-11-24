@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aisha — админка меню</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0b0b0b">
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin">
+
+  <!-- ===== Вход ===== -->
+  <section id="login" class="login" hidden>
+    <img class="login__logo" src="img/logo.png" alt="" width="96" height="96">
+    <h1>Админка меню</h1>
+    <p class="muted">Здесь меняются цены, блюда, фото и стоп-лист. Изменения сохраняются в GitHub, и сайт обновляется сам.</p>
+
+    <form id="loginForm" class="card form">
+      <label class="field">
+        <span>Ключ доступа (GitHub token)</span>
+        <input id="fToken" type="password" autocomplete="current-password" placeholder="github_pat_…" required>
+      </label>
+      <label class="field">
+        <span>Репозиторий</span>
+        <input id="fRepo" type="text" placeholder="логин/репозиторий" autocapitalize="off" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span>Ветка</span>
+        <input id="fBranch" type="text" value="main" autocapitalize="off" spellcheck="false" required>
+      </label>
+      <p class="error" id="loginError" hidden></p>
+      <button class="btn btn--gold btn--block" type="submit" id="loginBtn">Войти</button>
+      <button class="btn btn--ghost btn--block" type="button" id="demoBtn">Посмотреть без входа (демо)</button>
+    </form>
+
+    <details class="card help">
+      <summary>Как получить ключ доступа</summary>
+      <ol>
+        <li>Зайдите на GitHub → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+        <li>Срок действия — например, 1 год. В <b>Repository access</b> выберите только репозиторий с сайтом.</li>
+        <li>В <b>Permissions → Repository permissions → Contents</b> выберите <b>Read and write</b>.</li>
+        <li>Нажмите <b>Generate token</b>, скопируйте ключ и вставьте сюда. Он хранится только в этом браузере.</li>
+      </ol>
+      <p class="muted">Никому не передавайте ключ: с ним можно менять сайт.</p>
+    </details>
+  </section>
+
+  <!-- ===== Панель ===== -->
+  <section id="app" hidden>
+    <header class="topbar">
+      <img src="img/logo.png" alt="" width="36" height="36">
+      <div class="topbar__title">
+        <strong>Админка</strong>
+        <span id="repoLabel" class="muted"></span>
+      </div>
+      <a class="btn btn--ghost btn--sm" href="./" target="_blank" rel="noopener">Сайт ↗</a>
+      <button class="btn btn--ghost btn--sm" id="logoutBtn">Выйти</button>
+    </header>
+
+    <nav class="segmented" role="tablist">
+      <button role="tab" data-view="menu" aria-selected="true">Меню</button>
+      <button role="tab" data-view="stop" aria-selected="false">Стоп-лист</button>
+      <button role="tab" data-view="cafe" aria-selected="false">Контакты</button>
+    </nav>
+
+    <main class="admin-main">
+      <div id="viewMenu"></div>
+      <div id="viewStop" hidden>
+        <div class="tabs__search admin-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="stopSearch" type="search" placeholder="Найти блюдо…" autocomplete="off">
+        </div>
+        <p class="muted small">Выключите блюдо, если его сейчас нет — на сайте оно станет серым с пометкой «Нет в наличии».</p>
+        <div id="stopList"></div>
+      </div>
+      <div id="viewCafe" hidden></div>
+    </main>
+
+    <div class="savebar">
+      <span id="saveStatus" class="savebar__status">Изменений нет</span>
+      <button class="btn btn--gold" id="saveBtn" disabled>Сохранить</button>
+    </div>
+  </section>
+
+  <!-- ===== Редактор блюда ===== -->
+  <div class="sheet" id="editor" hidden>
+    <div class="sheet__backdrop" data-close-editor></div>
+    <section class="sheet__panel editor" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+      <div class="sheet__head">
+        <h2 id="edTitle">Блюдо</h2>
+        <button class="icon-btn" data-close-editor aria-label="Закрыть">✕</button>
+      </div>
+      <div id="edBody" class="form"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

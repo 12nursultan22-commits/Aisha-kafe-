@@ -1,127 +1,191 @@
 (function () {
   "use strict";
 
-  const $ = (s) => document.querySelector(s);
-  const fmt = (n) => n.toLocaleString("ru-RU").replace(/,/g, " ") + " " + CAFE.currency;
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const TAGS = { hit: "Хит", new: "Новинка", spicy: "Острое", veg: "Вег" };
-  const CART_KEY = "aisha-cart-v2";
-
-  // items — блюда (для поиска), prods — позиции, которые можно добавить в заказ
-  const items = {};
-  const prods = {};
-  MENU.forEach((cat) => cat.items.forEach((it, i) => {
-    it.key = cat.id + ":" + i;
-    items[it.key] = it;
-    if (it.variants) {
-      it.variants.forEach((v, vi) => {
-        v.key = it.key + "/" + vi;
-        prods[v.key] = { name: it.name + " (" + v.label + ")", price: v.price, off: it.off };
-      });
-    } else {
-      prods[it.key] = { name: it.name + (it.weight ? " (" + it.weight + ")" : ""), price: it.price, off: it.off };
+  // ---------- Тексты интерфейса ----------
+  const T = {
+    ru: {
+      menu: "Меню", search: "Поиск блюда…", empty: "Ничего не найдено",
+      order: "Мой заказ", total: "Итого", clear: "Очистить", close: "Закрыть",
+      hintWa: "Покажите этот список официанту или отправьте заказ в WhatsApp.",
+      hint: "Покажите этот список официанту.",
+      call: "Позвонить", prices: "Цены указаны в тенге",
+      add: "Добавить", remove: "Убрать", off: "Нет в наличии",
+      tags: { hit: "Хит", new: "Новинка", spicy: "Острое", veg: "Вег" },
+      waHello: (n) => `Здравствуйте! Заказ в кафе ${n}:`, loadErr: "Не удалось загрузить меню. Обновите страницу."
+    },
+    kz: {
+      menu: "Мәзір", search: "Тағамды іздеу…", empty: "Ештеңе табылмады",
+      order: "Менің тапсырысым", total: "Барлығы", clear: "Тазалау", close: "Жабу",
+      hintWa: "Бұл тізімді даяшыға көрсетіңіз немесе тапсырысты WhatsApp арқылы жіберіңіз.",
+      hint: "Бұл тізімді даяшыға көрсетіңіз.",
+      call: "Қоңырау шалу", prices: "Бағалар теңгемен көрсетілген",
+      add: "Қосу", remove: "Алып тастау", off: "Қазір жоқ",
+      tags: { hit: "Хит", new: "Жаңа", spicy: "Ащы", veg: "Вег" },
+      waHello: (n) => `Сәлеметсіз бе! ${n} кафесіне тапсырыс:`, loadErr: "Мәзір жүктелмеді. Бетті жаңартыңыз."
     }
-  }));
+  };
 
-  let cart = {};
-  try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch (e) { cart = {}; }
-  Object.keys(cart).forEach((k) => { if (!prods[k] || prods[k].off) delete cart[k]; });
-  const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} };
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
 
-  // ---------- Шапка и подвал ----------
-  $("#heroMeta").textContent = [CAFE.city, CAFE.hours].filter(Boolean).join(" · ");
-  const links = [];
-  if (CAFE.phone) links.push(`<a class="btn btn--ghost" href="tel:${esc(CAFE.phone.replace(/[^\d+]/g, ""))}">📞 Позвонить</a>`);
-  if (CAFE.whatsapp) links.push(`<a class="btn btn--ghost" href="https://wa.me/${esc(CAFE.whatsapp)}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
-  if (CAFE.instagram) links.push(`<a class="btn btn--ghost" href="https://instagram.com/${esc(CAFE.instagram)}" target="_blank" rel="noopener">📷 Instagram</a>`);
-  $("#footer").innerHTML = `
-    <p><strong style="color:var(--text)">${esc(CAFE.name)}</strong> — ${esc(CAFE.subtitle.toLowerCase())}</p>
-    ${CAFE.address ? `<p>${esc(CAFE.address)}</p>` : ""}
-    ${CAFE.hours ? `<p>${esc(CAFE.hours)}</p>` : ""}
-    ${links.length ? `<div class="footer__links">${links.join("")}</div>` : ""}
-    <p class="footer__note">${esc(CAFE.serviceNote)}</p>`;
+  let lang = store.get("aisha-lang") === "kz" ? "kz" : "ru";
+  let DATA, CAFE, cart = {};
+  const items = {}, prods = {};
 
-  // ---------- Меню ----------
-  const qtySlot = (key, off) => (off ? "" : `<div class="qty" data-qty="${key}"></div>`);
+  const t = (k) => T[lang][k];
+  const fmt = (n) => Number(n).toLocaleString("ru-RU").replace(/,/g, " ") + " " + (CAFE.currency || "₸");
+  // текст на текущем языке (если казахского нет — показываем русский)
+  const L = (ru, kz) => (lang === "kz" && kz ? kz : ru) || "";
+  // название на втором языке — мелкой строкой
+  const other = (ru, kz) => (lang === "kz" ? (kz ? ru : "") : kz) || "";
+  const units = (s) => (lang === "kz" ? String(s || "").replace(/шт\.?/g, "дана") : s || "");
+
+  // ---------- Загрузка ----------
+  function load() {
+    if (window.MENU_DATA) return Promise.resolve(window.MENU_DATA);
+    return fetch("data/menu.json", { cache: "no-cache" }).then((r) => {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    });
+  }
+
+  load().then((d) => {
+    DATA = d; CAFE = d.cafe || {};
+    DATA.categories.forEach((cat) => cat.items.forEach((it) => {
+      items[it.id] = it;
+      if (it.variants && it.variants.length) it.variants.forEach((v, vi) => (prods[it.id + "/" + vi] = { it, v }));
+      else prods[it.id] = { it };
+    }));
+    try { cart = JSON.parse(store.get("aisha-cart-v3")) || {}; } catch (e) { cart = {}; }
+    Object.keys(cart).forEach((k) => { if (!prods[k] || prods[k].it.off) delete cart[k]; });
+    bind();
+    render();
+  }).catch(() => {
+    $("#menu").innerHTML = `<p class="empty">${T[lang].loadErr}</p>`;
+  });
+
+  const saveCart = () => store.set("aisha-cart-v3", JSON.stringify(cart));
+  const prodName = (p) => L(p.it.name, p.it.kz) + (p.v ? " (" + units(p.v.label) + ")" : p.it.weight ? " (" + units(p.it.weight) + ")" : "");
+  const prodPrice = (p) => (p.v ? p.v.price : p.it.price);
+
+  // ---------- Отрисовка ----------
+  function render() {
+    document.documentElement.lang = lang === "kz" ? "kk" : "ru";
+    document.querySelectorAll(".lang__btn").forEach((b) => b.setAttribute("aria-pressed", b.dataset.lang === lang));
+    $("#heroTitle").textContent = t("menu");
+    $("#heroMeta").textContent = [L(CAFE.city, CAFE.cityKz), L(CAFE.hours, CAFE.hoursKz)].filter(Boolean).join(" · ");
+    $("#search").placeholder = t("search");
+    $("#search").setAttribute("aria-label", t("search"));
+    $("#empty").textContent = t("empty");
+    $("#cartLabel").textContent = t("order");
+    $("#sheetTitle").textContent = t("order");
+    $("#totalLabel").textContent = t("total");
+    $("#cartClear").textContent = t("clear");
+    document.querySelectorAll("[data-close]").forEach((b) => b.setAttribute("aria-label", t("close")));
+
+    const links = [];
+    if (CAFE.phone) links.push(`<a class="btn btn--ghost" href="tel:${esc(CAFE.phone.replace(/[^\d+]/g, ""))}">📞 ${t("call")}</a>`);
+    if (CAFE.whatsapp) links.push(`<a class="btn btn--ghost" href="https://wa.me/${esc(CAFE.whatsapp)}" target="_blank" rel="noopener">💬 WhatsApp</a>`);
+    if (CAFE.instagram) links.push(`<a class="btn btn--ghost" href="https://instagram.com/${esc(CAFE.instagram)}" target="_blank" rel="noopener">📷 Instagram</a>`);
+    const addr = L(CAFE.address, CAFE.addressKz), hours = L(CAFE.hours, CAFE.hoursKz);
+    $("#footer").innerHTML = `
+      <p><strong class="footer__name">${esc(CAFE.name)}</strong> — ${esc(L(CAFE.subtitle, CAFE.subtitleKz).toLowerCase())}</p>
+      ${addr ? `<p>📍 ${esc(addr)}</p>` : ""}
+      ${CAFE.phone ? `<p>☎️ ${esc(CAFE.phone)}</p>` : ""}
+      ${hours ? `<p>🕒 ${esc(hours)}</p>` : ""}
+      ${links.length ? `<div class="footer__links">${links.join("")}</div>` : ""}
+      <p class="footer__note">${t("prices")}</p>`;
+
+    const cats = DATA.categories.filter((c) => c.items.length);
+    $("#menu").innerHTML = cats.map((cat) => {
+      const title = L(cat.title, cat.kz), sub = other(cat.title, cat.kz);
+      return `
+      <section class="section" id="${esc(cat.id)}">
+        <h2 class="section__title"><span>${esc(title)}${sub && sub !== title ? `<small>${esc(sub)}</small>` : ""}</span></h2>
+        ${cat.items.map(itemHTML).join("")}
+      </section>`;
+    }).join("");
+    $("#tabsRow").innerHTML = cats.map((c) =>
+      `<button class="tab" data-target="${esc(c.id)}">${c.icon ? esc(c.icon) + " " : ""}${esc(L(c.title, c.kz))}</button>`).join("");
+
+    Object.keys(prods).forEach(renderQty);
+    renderCart();
+    observe();
+    applySearch();
+  }
+
+  const qtySlot = (key, off) => (off ? "" : `<div class="qty" data-qty="${esc(key)}"></div>`);
 
   function itemHTML(it) {
-    const tags = (it.tags || []).map((t) => `<span class="tag tag--${t}">${TAGS[t] || t}</span>`);
-    if (it.off) tags.push(`<span class="tag tag--off">Нет в наличии</span>`);
-    const foot = it.variants
-      ? `<div class="vars">${it.variants.map((v) => `
+    const tags = (it.tags || []).map((g) => `<span class="tag tag--${esc(g)}">${esc(t("tags")[g] || g)}</span>`);
+    if (it.off) tags.push(`<span class="tag tag--off">${t("off")}</span>`);
+    const name = L(it.name, it.kz), sub = other(it.name, it.kz);
+    const desc = L(it.desc, it.descKz);
+    const foot = it.variants && it.variants.length
+      ? `<div class="vars">${it.variants.map((v, vi) => `
           <div class="var">
-            <span class="var__label">${esc(v.label)}</span>
+            <span class="var__label">${esc(units(v.label))}</span>
             <span class="item__price">${fmt(v.price)}</span>
-            ${qtySlot(v.key, it.off)}
+            ${qtySlot(it.id + "/" + vi, it.off)}
           </div>`).join("")}</div>`
       : `<div class="item__foot">
           <span class="item__price">${fmt(it.price)}</span>
-          ${it.weight ? `<span class="item__weight">${esc(it.weight)}</span>` : ""}
-          ${qtySlot(it.key, it.off)}
+          ${it.weight ? `<span class="item__weight">${esc(units(it.weight))}</span>` : ""}
+          ${qtySlot(it.id, it.off)}
         </div>`;
     return `
-      <article class="item${it.off ? " is-off" : ""}" data-key="${it.key}">
+      <article class="item${it.off ? " is-off" : ""}" data-key="${esc(it.id)}">
         ${it.img ? `<img class="item__img" src="${esc(it.img)}" alt="" loading="lazy">` : ""}
         <div class="item__body">
-          <h3 class="item__name">${esc(it.name)}${tags.length ? `<span class="tags">${tags.join("")}</span>` : ""}</h3>
-          ${it.kz ? `<p class="item__kz">${esc(it.kz)}</p>` : ""}
-          ${it.desc ? `<p class="item__desc">${esc(it.desc)}</p>` : ""}
+          <h3 class="item__name">${esc(name)}${tags.length ? `<span class="tags">${tags.join("")}</span>` : ""}</h3>
+          ${sub && sub !== name ? `<p class="item__kz">${esc(sub)}</p>` : ""}
+          ${desc ? `<p class="item__desc">${esc(desc)}</p>` : ""}
           ${foot}
         </div>
       </article>`;
   }
 
-  $("#menu").innerHTML = MENU.map((cat) => `
-    <section class="section" id="${cat.id}">
-      <h2 class="section__title"><span>${esc(cat.title)}${cat.kz ? `<small>${esc(cat.kz)}</small>` : ""}</span></h2>
-      ${cat.items.map(itemHTML).join("")}
-    </section>`).join("");
-
-  $("#tabsRow").innerHTML = MENU.map((c) =>
-    `<button class="tab" data-target="${c.id}">${c.icon ? c.icon + " " : ""}${esc(c.title)}</button>`).join("");
-
-  // ---------- Шторка заказа ----------
+  // ---------- Заказ ----------
   const sheet = $("#sheet");
   function openSheet() { sheet.hidden = false; document.body.style.overflow = "hidden"; }
   function closeSheet() { sheet.hidden = true; document.body.style.overflow = ""; }
 
-  // ---------- Кол-во / корзина ----------
   const qtyBtns = (key, n) => n
-    ? `<button class="qty__btn" data-dec="${key}" aria-label="Убрать">−</button><span class="qty__n">${n}</span><button class="qty__btn qty__btn--add" data-inc="${key}" aria-label="Добавить">+</button>`
-    : `<button class="qty__btn qty__btn--add" data-inc="${key}" aria-label="Добавить в заказ">+</button>`;
+    ? `<button class="qty__btn" data-dec="${esc(key)}" aria-label="${t("remove")}">−</button><span class="qty__n">${n}</span><button class="qty__btn qty__btn--add" data-inc="${esc(key)}" aria-label="${t("add")}">+</button>`
+    : `<button class="qty__btn qty__btn--add" data-inc="${esc(key)}" aria-label="${t("add")}">+</button>`;
 
   function renderQty(key) {
     const el = document.querySelector(`[data-qty="${CSS.escape(key)}"]`);
     if (el) el.innerHTML = qtyBtns(key, cart[key] || 0);
   }
 
-  const cartEntries = () => Object.entries(cart).filter(([, n]) => n > 0).map(([k, n]) => [k, prods[k], n]);
-
   function renderCart() {
-    const entries = cartEntries();
+    const entries = Object.entries(cart).filter(([k, n]) => n > 0 && prods[k]).map(([k, n]) => [k, prods[k], n]);
     const count = entries.reduce((s, [, , n]) => s + n, 0);
-    const total = entries.reduce((s, [, p, n]) => s + p.price * n, 0);
+    const total = entries.reduce((s, [, p, n]) => s + prodPrice(p) * n, 0);
     $("#cartBtn").hidden = count === 0;
     $("#cartCount").textContent = count;
     $("#cartSum").textContent = fmt(total);
     $("#cartTotal").textContent = fmt(total);
     $("#cartList").innerHTML = entries.map(([k, p, n]) => `
       <li>
-        <span class="name">${esc(p.name)}</span>
+        <span class="name">${esc(prodName(p))}</span>
         <div class="qty">${qtyBtns(k, n)}</div>
-        <span class="sum">${fmt(p.price * n)}</span>
+        <span class="sum">${fmt(prodPrice(p) * n)}</span>
       </li>`).join("");
     const wa = $("#cartWa");
+    wa.hidden = !CAFE.whatsapp;
     if (CAFE.whatsapp) {
-      const text = `Здравствуйте! Заказ в кафе ${CAFE.name}:\n` +
-        entries.map(([, p, n]) => `• ${p.name} × ${n} = ${fmt(p.price * n)}`).join("\n") +
-        `\nИтого: ${fmt(total)}`;
+      const text = t("waHello")(CAFE.name) + "\n" +
+        entries.map(([, p, n]) => `• ${prodName(p)} × ${n} = ${fmt(prodPrice(p) * n)}`).join("\n") +
+        `\n${t("total")}: ${fmt(total)}`;
       wa.href = `https://wa.me/${CAFE.whatsapp}?text=${encodeURIComponent(text)}`;
     }
-    wa.hidden = !CAFE.whatsapp;
-    $(".sheet__hint").textContent = CAFE.whatsapp
-      ? "Покажите этот список официанту или отправьте заказ в WhatsApp."
-      : "Покажите этот список официанту.";
+    $("#sheetHint").textContent = CAFE.whatsapp ? t("hintWa") : t("hint");
     if (count === 0) closeSheet();
   }
 
@@ -131,62 +195,64 @@
     saveCart(); renderQty(key); renderCart();
   }
 
-  document.addEventListener("click", (e) => {
-    const inc = e.target.closest("[data-inc]");
-    const dec = e.target.closest("[data-dec]");
-    if (inc) change(inc.dataset.inc, +1);
-    if (dec) change(dec.dataset.dec, -1);
-  });
-
-  Object.keys(prods).forEach(renderQty);
-  renderCart();
-
-  $("#cartBtn").addEventListener("click", openSheet);
-  sheet.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeSheet(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
-  $("#cartClear").addEventListener("click", () => {
-    const keys = Object.keys(cart); cart = {}; saveCart(); keys.forEach(renderQty); renderCart();
-  });
-
-  // ---------- Вкладки и подсветка активной категории ----------
-  const tabs = [...document.querySelectorAll(".tab")];
+  // ---------- Вкладки ----------
+  let io, lockUntil = 0;
   function setActive(id) {
-    tabs.forEach((t) => {
-      const on = t.dataset.target === id;
-      t.classList.toggle("is-active", on);
-      if (on) { const row = t.parentElement; row.scrollTo({ left: t.offsetLeft - (row.clientWidth - t.offsetWidth) / 2, behavior: "smooth" }); }
+    document.querySelectorAll(".tab").forEach((tb) => {
+      const on = tb.dataset.target === id;
+      tb.classList.toggle("is-active", on);
+      if (on) { const row = tb.parentElement; row.scrollTo({ left: tb.offsetLeft - (row.clientWidth - tb.offsetWidth) / 2, behavior: "smooth" }); }
     });
   }
-  let lockUntil = 0;
-  $("#tabsRow").addEventListener("click", (e) => {
-    const t = e.target.closest(".tab"); if (!t) return;
-    setActive(t.dataset.target);
-    lockUntil = Date.now() + 1500;
-    const sec = document.getElementById(t.dataset.target);
-    const y = sec.getBoundingClientRect().top + window.scrollY - $("#tabs").offsetHeight - 4;
-    window.scrollTo({ top: y, behavior: "smooth" });
-  });
-  const io = new IntersectionObserver((entries) => {
-    if (Date.now() < lockUntil) return;
-    entries.forEach((en) => { if (en.isIntersecting) setActive(en.target.id); });
-  }, { rootMargin: "-130px 0px -65% 0px" });
-  document.querySelectorAll(".section").forEach((s) => io.observe(s));
+  function observe() {
+    if (io) io.disconnect();
+    io = new IntersectionObserver((entries) => {
+      if (Date.now() < lockUntil) return;
+      entries.forEach((en) => { if (en.isIntersecting) setActive(en.target.id); });
+    }, { rootMargin: "-130px 0px -65% 0px" });
+    document.querySelectorAll(".section").forEach((s) => io.observe(s));
+  }
 
-  // ---------- Поиск (по-русски и по-казахски) ----------
+  // ---------- Поиск (по обоим языкам) ----------
   const norm = (s) => String(s || "").toLowerCase().replace(/ё/g, "е");
-  $("#search").addEventListener("input", (e) => {
-    const q = norm(e.target.value.trim());
+  function applySearch() {
+    const q = norm($("#search").value.trim());
     let any = false;
     document.querySelectorAll(".section").forEach((sec) => {
       let shown = 0;
       sec.querySelectorAll(".item").forEach((el) => {
         const it = items[el.dataset.key];
-        const ok = !q || norm([it.name, it.kz, it.desc].join(" ")).includes(q);
+        const ok = !q || norm([it.name, it.kz, it.desc, it.descKz].join(" ")).includes(q);
         el.hidden = !ok; if (ok) shown++;
       });
       sec.hidden = shown === 0; if (shown) any = true;
     });
     $("#empty").hidden = any;
     $("#tabsRow").hidden = !!q;
-  });
+  }
+
+  // ---------- События ----------
+  function bind() {
+    document.addEventListener("click", (e) => {
+      const inc = e.target.closest("[data-inc]"), dec = e.target.closest("[data-dec]");
+      if (inc) change(inc.dataset.inc, +1);
+      if (dec) change(dec.dataset.dec, -1);
+      const lb = e.target.closest(".lang__btn");
+      if (lb && lb.dataset.lang !== lang) { lang = lb.dataset.lang; store.set("aisha-lang", lang); render(); }
+    });
+    $("#cartBtn").addEventListener("click", openSheet);
+    sheet.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeSheet(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+    $("#cartClear").addEventListener("click", () => {
+      const keys = Object.keys(cart); cart = {}; saveCart(); keys.forEach(renderQty); renderCart();
+    });
+    $("#tabsRow").addEventListener("click", (e) => {
+      const tb = e.target.closest(".tab"); if (!tb) return;
+      setActive(tb.dataset.target);
+      lockUntil = Date.now() + 1500;
+      const sec = document.getElementById(tb.dataset.target);
+      window.scrollTo({ top: sec.getBoundingClientRect().top + window.scrollY - $("#tabs").offsetHeight - 4, behavior: "smooth" });
+    });
+    $("#search").addEventListener("input", applySearch);
+  }
 })();

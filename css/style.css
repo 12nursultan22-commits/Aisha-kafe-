@@ -230,3 +230,19 @@ button { font: inherit; color: inherit; }
 .var + .var { border-top: 1px dashed var(--line); padding-top: 6px; }
 .var__label { color: var(--muted); font-size: 13px; min-width: 44px; }
 .var .qty__btn { width: 30px; height: 30px; font-size: 18px; }
+
+/* ---------- Переключатель языка ---------- */
+.hero { position: relative; }
+.lang {
+  position: absolute; top: 14px; right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; padding: 3px; gap: 2px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+}
+.lang__btn {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+}
+.lang__btn[aria-pressed="true"] { background: var(--gold); color: #111; }
+.lang__btn:focus-visible, .tab:focus-visible, .qty__btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.footer__name { color: var(--text); }
