@@ -1,0 +1,21 @@
+{
+ "v": 1,
+ "accounts": [
+  {
+   "login": "aishakafe2026",
+   "salt": "RMFGZBluzMUmWq3hAdwFWg==",
+   "iter": 600000,
+   "key": {
+    "iv": "WR2l9Sl41Wt1/xH8",
+    "ct": "daR08uwwx70ZkeYF8jIlM2g3u3QKabdKAwjweHukTv2+4/zS+DPAc4ic4ejDMbRB"
+   },
+   "created": "25.11.2026"
+  }
+ ],
+ "repo": "12nursultan22-commits/Aisha-kafe-",
+ "branch": "main",
+ "token": {
+  "iv": "YSMczjEXigVi0u+g",
+  "ct": "nqn4NQ68qhRZjhhoFodwn4xqEjHxKnwO1s4ZWtMgksOG3qMRPrQclwfrn7r0Wxt5Zeq9x59gbAfw+lUm0hix+sNpGQR/LlQalRze5am/ruwEuaxq3wI9iqqNr+oM3QO2/NjfDnTsg1IzEAzrrQ=="
+ }
+}
