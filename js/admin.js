@@ -19,6 +19,7 @@
 
   const S = {
     token: "", repo: "", branch: "main", demo: false,
+    kRaw: null, user: "", auth: null, publicAuth: null, loginMode: "pw",
     data: null, loadedText: "", dirty: false,
     pending: {},   // новые фото: путь → base64
     previews: {},  // новые фото: путь → dataURL для показа
@@ -88,25 +89,37 @@
   function showLogin(err) {
     $("#app").hidden = true;
     $("#login").hidden = false;
+    const hasAcc = !!(S.publicAuth && S.publicAuth.accounts && S.publicAuth.accounts.length);
+    if (!hasAcc) S.loginMode = "token";
+    $("#pwForm").hidden = S.loginMode !== "pw";
+    $("#tokenBox").hidden = S.loginMode !== "token";
+    $("#noAccounts").hidden = hasAcc;
+    $("#toTokenBtn").hidden = !hasAcc;
+    $("#toTokenBtn").textContent = S.loginMode === "token" ? "Войти по логину и паролю" : "Вход для разработчика (по ключу GitHub)";
     $("#fRepo").value = S.repo || guessRepo();
     $("#fBranch").value = S.branch || "main";
-    $("#loginError").hidden = !err;
-    $("#loginError").textContent = err || "";
+    const box = S.loginMode === "pw" ? $("#pwError") : $("#loginError");
+    $("#pwError").hidden = $("#loginError").hidden = true;
+    box.hidden = !err; box.textContent = err || "";
   }
 
   async function connect() {
-    const btn = $("#loginBtn");
-    btn.disabled = true; btn.textContent = "Загрузка…";
+    const btns = [$("#loginBtn"), $("#pwBtn")];
+    btns.forEach((b) => { b.disabled = true; b.dataset.t = b.dataset.t || b.textContent; b.textContent = "Загрузка…"; });
     try {
       const text = await readMenu();
       S.data = JSON.parse(text);
       S.loadedText = text;
       S.demo = false;
+      S.auth = await readAuthRemote();
       start();
     } catch (e) {
-      showLogin(e.message || "Не удалось загрузить меню.");
+      let msg = e.message || "Не удалось загрузить меню.";
+      if (S.user && e.status === 401) msg = "Ключ GitHub, к которому привязаны логины, истёк. Разработчику нужно войти по новому ключу и во вкладке «Доступ» подтвердить любой логин — тогда пароли снова заработают.";
+      if (S.user) forget();
+      showLogin(msg);
     } finally {
-      btn.disabled = false; btn.textContent = "Войти";
+      btns.forEach((b) => { b.disabled = false; b.textContent = b.dataset.t; });
     }
   }
 
@@ -126,10 +139,183 @@
   function start() {
     $("#login").hidden = true;
     $("#app").hidden = false;
-    $("#repoLabel").textContent = S.demo ? "Демо — изменения не сохраняются" : S.repo + " · " + S.branch;
+    $("#repoLabel").textContent = S.demo ? "Демо — изменения не сохраняются" : S.user ? "Вход: " + S.user : S.repo + " · " + S.branch;
     S.dirty = false; S.pending = {}; S.previews = {};
     renderAll();
   }
+
+  // ---------- Логины и пароли ----------
+  // data/admin-auth.json: ключ GitHub, зашифрованный случайным мастер-ключом (AES-GCM).
+  // Для каждого логина мастер-ключ зашифрован ключом из пароля (PBKDF2-SHA256, 600 000 итераций).
+  // Файл публичный, но без правильного пароля ключ GitHub из него не достать.
+  const AUTH_PATH = "data/admin-auth.json";
+  const ITER = 600000;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const unb64 = (str) => Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+  const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
+  const normLogin = (l) => String(l || "").trim().toLowerCase();
+
+  async function passKey(password, salt, iter) {
+    const base = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: "SHA-256" }, base,
+      { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  const rawKey = (bytes) => crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+  async function seal(key, bytes) {
+    const iv = rnd(12);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes));
+    return { iv: b64bytes(iv), ct: b64bytes(ct) };
+  }
+  async function unseal(key, box) {
+    return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.iv) }, key, unb64(box.ct)));
+  }
+
+  async function loadAuthPublic() {
+    try {
+      const r = await fetch(AUTH_PATH + "?t=" + Date.now(), { cache: "no-store" });
+      return r.ok ? await r.json() : null;
+    } catch (e) { return null; }
+  }
+  async function readAuthRemote() {
+    try { return JSON.parse(await gh(`/repos/${seg(S.repo)}/contents/${AUTH_PATH}?ref=${encodeURIComponent(S.branch)}`, { raw: true })); }
+    catch (e) { if (e.status === 404) return null; throw e; }
+  }
+  const saveAuth = (msg) => commitFiles([{ path: AUTH_PATH, content: b64text(JSON.stringify(S.auth, null, 1) + "\n") }], msg);
+
+  function remember() {
+    store.set("aisha-admin", JSON.stringify({ token: S.token, repo: S.repo, branch: S.branch, k: S.kRaw ? b64bytes(S.kRaw) : "", user: S.user || "" }));
+  }
+  function forget() { store.del("aisha-admin"); S.token = ""; S.kRaw = null; S.user = ""; }
+
+  // мастер-ключ из логина и пароля
+  async function masterFrom(auth, login, password) {
+    const acc = auth && (auth.accounts || []).find((a) => a.login === normLogin(login));
+    if (!acc) throw new Error("Неверный логин или пароль.");
+    try { return { k: await unseal(await passKey(password, unb64(acc.salt), acc.iter), acc.key), acc }; }
+    catch (e) { throw new Error("Неверный логин или пароль."); }
+  }
+
+  async function passwordLogin(login, password) {
+    const auth = S.publicAuth;
+    const { k, acc } = await masterFrom(auth, login, password);
+    S.token = dec.decode(await unseal(await rawKey(k), auth.token));
+    S.repo = auth.repo; S.branch = auth.branch || "main";
+    S.kRaw = k; S.user = acc.login;
+    remember();
+  }
+
+  async function addAccount(login, pass) {
+    if (!S.kRaw) { S.kRaw = rnd(32); S.auth = { v: 1, accounts: [] }; }
+    S.auth.repo = S.repo; S.auth.branch = S.branch;
+    S.auth.token = await seal(await rawKey(S.kRaw), enc.encode(S.token));
+    const salt = rnd(16);
+    const wrapped = await seal(await passKey(pass, salt, ITER), S.kRaw);
+    S.auth.accounts = (S.auth.accounts || []).filter((a) => a.login !== login)
+      .concat({ login, salt: b64bytes(salt), iter: ITER, key: wrapped, created: new Date().toLocaleDateString("ru-RU") });
+    await saveAuth("Админка: логин " + login);
+    remember();
+  }
+
+  // вошли по ключу GitHub: подтверждаем любой логин, чтобы получить мастер-ключ;
+  // если ключ GitHub новый — перешифровываем его, и все пароли снова работают
+  async function unlock(login, pass) {
+    const { k } = await masterFrom(S.auth, login, pass);
+    S.kRaw = k;
+    const stored = dec.decode(await unseal(await rawKey(k), S.auth.token));
+    if (stored !== S.token) {
+      S.auth.token = await seal(await rawKey(k), enc.encode(S.token));
+      await saveAuth("Админка: новый ключ для логинов");
+      remember();
+      return "Готово. Логины теперь работают с вашим новым ключом.";
+    }
+    remember();
+    return "Готово. Теперь можно управлять логинами.";
+  }
+
+  async function rotateToken(newTok) {
+    const old = S.token;
+    S.token = newTok;
+    try { await readMenu(); }
+    catch (e) { S.token = old; throw new Error("Новый ключ не подходит: " + e.message); }
+    S.auth.token = await seal(await rawKey(S.kRaw), enc.encode(newTok));
+    await saveAuth("Админка: новый ключ GitHub");
+    remember();
+  }
+
+  function renderAccess() {
+    const box = $("#viewAccess");
+    if (S.demo) { box.innerHTML = `<div class="card"><p class="muted" style="margin:0">В демо-режиме логины не создаются. Войдите по ключу GitHub.</p></div>`; return; }
+    const accs = (S.auth && S.auth.accounts) || [];
+    const locked = accs.length > 0 && !S.kRaw;
+    const list = accs.length
+      ? `<ul class="acc-list">${accs.map((x) => `
+          <li class="acc">
+            <span class="acc__name">${esc(x.login)}<small>${x.created ? "создан " + esc(x.created) : ""}</small></span>
+            ${x.login === S.user ? `<span class="muted small">это вы</span>` : `<button class="btn btn--danger btn--sm" data-act="del-acc" data-login="${esc(x.login)}">Удалить</button>`}
+          </li>`).join("")}</ul>`
+      : `<p class="muted small" style="margin:0">Пока нет ни одного логина.</p>`;
+    box.innerHTML = `
+    <div class="access">
+      <div class="card form">
+        <h3 class="section-h">Логины для входа</h3>
+        <p class="muted small" style="margin:0">С логином и паролем можно войти в админку с любого телефона, ключ GitHub знать не нужно.</p>
+        ${list}
+      </div>
+      ${locked ? `
+      <form class="card form" id="unlockForm">
+        <h3 class="section-h">Подтвердите логин</h3>
+        <p class="muted small" style="margin:0">Вы вошли по ключу GitHub. Чтобы управлять логинами, введите любой существующий логин и пароль. Если ключ GitHub новый, логины тоже начнут работать с ним.</p>
+        <label class="field"><span>Логин</span><input id="uLogin" autocomplete="off" autocapitalize="off" spellcheck="false" required></label>
+        <label class="field"><span>Пароль</span><input id="uPass" type="password" autocomplete="off" required></label>
+        <button class="btn btn--gold" type="submit">Подтвердить</button>
+        <p class="muted small" style="margin:0">Пароль никто не помнит? Можно создать доступы заново — старые логины перестанут работать.</p>
+        <button class="btn btn--danger" type="button" data-act="reset-auth">Создать доступы заново</button>
+      </form>` : `
+      <form class="card form" id="accForm">
+        <h3 class="section-h">${accs.length ? "Добавить логин или сменить пароль" : "Создать логин"}</h3>
+        <label class="field"><span>Логин</span><input id="aLogin" autocomplete="off" autocapitalize="off" spellcheck="false" required></label>
+        <label class="field"><span>Пароль — не меньше 8 символов</span><input id="aPass" type="password" autocomplete="new-password" required></label>
+        <label class="field"><span>Пароль ещё раз</span><input id="aPass2" type="password" autocomplete="new-password" required></label>
+        <p class="muted small" style="margin:0">Если такой логин уже есть, у него сменится пароль. Вход по новому логину заработает через 1–2 минуты.</p>
+        <button class="btn btn--gold" type="submit">Сохранить логин</button>
+      </form>
+      ${S.kRaw ? `
+      <form class="card form" id="tokForm">
+        <h3 class="section-h">Ключ GitHub</h3>
+        <p class="muted small" style="margin:0">Когда срок ключа закончится, вставьте сюда новый. Логины и пароли менять не придётся.</p>
+        <label class="field"><span>Новый ключ</span><input id="aToken" type="password" autocomplete="off" placeholder="github_pat_…" required></label>
+        <button class="btn btn--ghost" type="submit">Обновить ключ</button>
+      </form>` : ""}`}
+    </div>`;
+  }
+
+  async function busy(form, fn) {
+    const btn = form.querySelector('button[type="submit"]');
+    const t = btn.textContent; btn.disabled = true; btn.textContent = "Подождите…";
+    try { return await fn(); } finally { btn.disabled = false; btn.textContent = t; }
+  }
+
+  document.addEventListener("submit", async (e) => {
+    const f = e.target;
+    if (!["accForm", "unlockForm", "tokForm"].includes(f.id)) return;
+    e.preventDefault();
+    try {
+      if (f.id === "accForm") {
+        const login = normLogin($("#aLogin").value), p1 = $("#aPass").value, p2 = $("#aPass2").value;
+        if (!/^[a-z0-9а-яёәғқңөұүһі._@-]{3,40}$/i.test(login)) return toast("Логин: от 3 до 40 букв или цифр, без пробелов.", true);
+        if (p1.length < 8) return toast("Пароль должен быть не короче 8 символов.", true);
+        if (p1 !== p2) return toast("Пароли не совпадают.", true);
+        await busy(f, () => addAccount(login, p1));
+        renderAccess(); toast("Логин «" + login + "» сохранён.");
+      } else if (f.id === "unlockForm") {
+        const msg = await busy(f, () => unlock($("#uLogin").value, $("#uPass").value));
+        renderAccess(); toast(msg);
+      } else {
+        await busy(f, () => rotateToken($("#aToken").value.trim()));
+        renderAccess(); toast("Ключ обновлён.");
+      }
+    } catch (err) { toast(err.message || "Не получилось.", true); }
+  });
 
   // ---------- Отрисовка ----------
   const cats = () => S.data.categories;
@@ -138,7 +324,7 @@
     : fmt(it.price);
   const imgSrc = (p) => S.previews[p] || p;
 
-  function renderAll() { renderMenu(); renderStop(); renderCafe(); renderSave(); setView(S.view); }
+  function renderAll() { renderMenu(); renderStop(); renderCafe(); renderAccess(); renderSave(); setView(S.view); }
 
   function setView(v) {
     S.view = v;
@@ -146,6 +332,9 @@
     $("#viewMenu").hidden = v !== "menu";
     $("#viewStop").hidden = v !== "stop";
     $("#viewCafe").hidden = v !== "cafe";
+    $("#viewAccess").hidden = v !== "access";
+    // логины сохраняются сразу — кнопка «Сохранить» меню там не нужна
+    $(".savebar").hidden = v === "access" && !S.dirty;
   }
 
   function renderMenu() {
@@ -383,6 +572,21 @@
         list.push(c); S.open.add(c.id); dirty(); renderMenu();
         return document.querySelector(`[data-cat="${list.length - 1}"][data-k="title"]`).select();
       }
+      case "del-acc": {
+        const login = b.dataset.login;
+        if (!confirmTwice(b, "Точно удалить?")) return;
+        const prev = S.auth.accounts;
+        S.auth.accounts = prev.filter((a) => a.login !== login);
+        saveAuth("Админка: удалён логин " + login)
+          .then(() => { renderAccess(); toast("Логин удалён."); })
+          .catch((err) => { S.auth.accounts = prev; toast(err.message, true); });
+        return;
+      }
+      case "reset-auth": {
+        if (!confirmTwice(b, "Старые логины перестанут работать. Точно?")) return;
+        S.auth = null; S.kRaw = null;
+        renderAccess(); return toast("Создайте новый логин — старые удалятся при сохранении.");
+      }
       case "del-cat": {
         if (!confirmTwice(b, list[ci].items.length ? `Удалить вместе с ${list[ci].items.length} блюдами?` : "Точно удалить?")) return;
         list.splice(ci, 1); dirty(); renderMenu(); renderStop(); return toast("Раздел удалён");
@@ -525,23 +729,46 @@
     S.token = $("#fToken").value.trim();
     S.repo = $("#fRepo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "");
     S.branch = $("#fBranch").value.trim() || "main";
-    store.set("aisha-admin", JSON.stringify({ token: S.token, repo: S.repo, branch: S.branch }));
+    S.kRaw = null; S.user = "";
+    remember();
     connect();
   });
+  $("#pwForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("#pwBtn");
+    btn.disabled = true; btn.textContent = "Проверяем…";
+    try {
+      await passwordLogin($("#fLogin").value, $("#fPassword").value);
+      $("#fPassword").value = "";
+      btn.disabled = false; btn.textContent = "Войти";
+      connect();
+    } catch (err) {
+      btn.disabled = false; btn.textContent = "Войти";
+      showLogin(err.message);
+    }
+  });
+  $("#toTokenBtn").addEventListener("click", () => { S.loginMode = S.loginMode === "pw" ? "token" : "pw"; showLogin(); });
   $("#demoBtn").addEventListener("click", startDemo);
   $("#logoutBtn").addEventListener("click", () => {
     if (S.dirty && !confirmTwice($("#logoutBtn"), "Есть несохранённое — выйти?")) return;
-    store.del("aisha-admin");
-    S.token = ""; S.data = null;
-    showLogin();
+    forget();
+    S.data = null; S.auth = null; S.loginMode = "pw";
+    loadAuthPublic().then((a) => { S.publicAuth = a; showLogin(); });
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeEditor(); });
   window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
-  try {
-    const saved = JSON.parse(store.get("aisha-admin") || "null");
-    if (saved) Object.assign(S, { token: saved.token || "", repo: saved.repo || "", branch: saved.branch || "main" });
-  } catch (e) {}
-  if (S.token && S.repo) { showLogin(); $("#login").hidden = true; connect(); }
-  else showLogin();
+  (async () => {
+    try {
+      const saved = JSON.parse(store.get("aisha-admin") || "null");
+      if (saved) {
+        Object.assign(S, { token: saved.token || "", repo: saved.repo || "", branch: saved.branch || "main", user: saved.user || "" });
+        if (saved.k) S.kRaw = unb64(saved.k);
+      }
+    } catch (e) {}
+    S.publicAuth = await loadAuthPublic();
+    S.loginMode = "pw";
+    if (S.token && S.repo) { showLogin(); $("#login").hidden = true; connect(); }
+    else showLogin();
+  })();
 })();

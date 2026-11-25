@@ -21,34 +21,53 @@
     <h1>Админка меню</h1>
     <p class="muted">Здесь меняются цены, блюда, фото и стоп-лист. Изменения сохраняются в GitHub, и сайт обновляется сам.</p>
 
-    <form id="loginForm" class="card form">
+    <!-- Вход по логину и паролю -->
+    <form id="pwForm" class="card form">
       <label class="field">
-        <span>Ключ доступа (GitHub token)</span>
-        <input id="fToken" type="password" autocomplete="current-password" placeholder="github_pat_…" required>
+        <span>Логин</span>
+        <input id="fLogin" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required>
       </label>
       <label class="field">
-        <span>Репозиторий</span>
-        <input id="fRepo" type="text" placeholder="логин/репозиторий" autocapitalize="off" spellcheck="false" required>
+        <span>Пароль</span>
+        <input id="fPassword" type="password" autocomplete="current-password" required>
       </label>
-      <label class="field">
-        <span>Ветка</span>
-        <input id="fBranch" type="text" value="main" autocapitalize="off" spellcheck="false" required>
-      </label>
-      <p class="error" id="loginError" hidden></p>
-      <button class="btn btn--gold btn--block" type="submit" id="loginBtn">Войти</button>
+      <p class="error" id="pwError" hidden></p>
+      <button class="btn btn--gold btn--block" type="submit" id="pwBtn">Войти</button>
       <button class="btn btn--ghost btn--block" type="button" id="demoBtn">Посмотреть без входа (демо)</button>
     </form>
+    <p class="muted small center" id="noAccounts" hidden>Логины ещё не созданы. Войдите по ключу GitHub и создайте логин во вкладке «Доступ».</p>
+    <button class="linklike" type="button" id="toTokenBtn">Вход для разработчика (по ключу GitHub)</button>
 
-    <details class="card help">
-      <summary>Как получить ключ доступа</summary>
-      <ol>
-        <li>Зайдите на GitHub → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
-        <li>Срок действия — например, 1 год. В <b>Repository access</b> выберите только репозиторий с сайтом.</li>
-        <li>В <b>Permissions → Repository permissions → Contents</b> выберите <b>Read and write</b>.</li>
-        <li>Нажмите <b>Generate token</b>, скопируйте ключ и вставьте сюда. Он хранится только в этом браузере.</li>
-      </ol>
-      <p class="muted">Никому не передавайте ключ: с ним можно менять сайт.</p>
-    </details>
+    <!-- Вход по ключу GitHub -->
+    <div id="tokenBox" class="form" hidden>
+      <form id="loginForm" class="card form">
+        <label class="field">
+          <span>Ключ доступа (GitHub token)</span>
+          <input id="fToken" type="password" autocomplete="off" placeholder="github_pat_…" required>
+        </label>
+        <label class="field">
+          <span>Репозиторий</span>
+          <input id="fRepo" type="text" placeholder="логин/репозиторий" autocapitalize="off" spellcheck="false" required>
+        </label>
+        <label class="field">
+          <span>Ветка</span>
+          <input id="fBranch" type="text" value="main" autocapitalize="off" spellcheck="false" required>
+        </label>
+        <p class="error" id="loginError" hidden></p>
+        <button class="btn btn--gold btn--block" type="submit" id="loginBtn">Войти по ключу</button>
+      </form>
+
+      <details class="card help">
+        <summary>Как получить ключ доступа</summary>
+        <ol>
+          <li>Зайдите на GitHub → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+          <li>Срок действия — например, 1 год. В <b>Repository access</b> выберите только репозиторий с сайтом.</li>
+          <li>В <b>Permissions → Repository permissions → Contents</b> выберите <b>Read and write</b>.</li>
+          <li>Нажмите <b>Generate token</b>, скопируйте ключ и вставьте сюда.</li>
+        </ol>
+        <p class="muted">Никому не передавайте ключ: с ним можно менять сайт. Для клиента лучше создать логин и пароль во вкладке «Доступ».</p>
+      </details>
+    </div>
   </section>
 
   <!-- ===== Панель ===== -->
@@ -67,6 +86,7 @@
       <button role="tab" data-view="menu" aria-selected="true">Меню</button>
       <button role="tab" data-view="stop" aria-selected="false">Стоп-лист</button>
       <button role="tab" data-view="cafe" aria-selected="false">Контакты</button>
+      <button role="tab" data-view="access" aria-selected="false">Доступ</button>
     </nav>
 
     <main class="admin-main">
@@ -80,6 +100,7 @@
         <div id="stopList"></div>
       </div>
       <div id="viewCafe" hidden></div>
+      <div id="viewAccess" hidden></div>
     </main>
 
     <div class="savebar">
